@@ -1,0 +1,92 @@
+════════════════════════════════════════════════════
+              DIGGERBOT — CAHIER DES CHARGES
+════════════════════════════════════════════════════
+
+▌ GÉNÉRAL
+──────────────────────────────────────────────────
+  Nom du bot   : DiggerBot
+  Channel      : #1070755417086513313 (bot inactif ailleurs)
+  Hébergement  : Railway (PostgreSQL pour les données)
+  Cartes       : Extension R&T (46 cartes, images PNG dans /Cartes)
+  Monnaie      : DiggerCoins (DC)
+
+  ⚠ Un joueur doit faire /in pour être considéré
+    comme participant. Sans /in, aucune commande
+    de jeu ne fonctionne.
+
+
+▌ SYSTÈME DE CARTES
+──────────────────────────────────────────────────
+  Rareté 1 — Verte    🟢  (cartes 001–020, 18 cartes)
+  Rareté 2 — Jaune    🟡  (cartes 021–033, 13 cartes)
+  Rareté 3 — Orange   🟠  (cartes 034–041,  8 cartes)
+  Rareté 4 — Violette 🟣  (cartes 042–046,  5 cartes)
+  Rareté 5 — Blanche  ⚪  (cartes 047–048,  2 cartes)
+
+  → Prévu pour scaler (nouvelles extensions de cartes)
+
+
+▌ TAUX DE DROP PAR NIVEAU (par carte dans un booster)
+──────────────────────────────────────────────────
+  Niveau 1 : 100% 🟢
+  Niveau 2 :  90% 🟢  10% 🟡
+  Niveau 3 :  70% 🟢  25% 🟡   5% 🟠
+  Niveau 4 :  55% 🟢  28% 🟡  12% 🟠   5% 🟣
+  Niveau 5 :  40% 🟢  28% 🟡  18% 🟠  11% 🟣   3% ⚪
+  Niveau 6 :  28% 🟢  25% 🟡  22% 🟠  20% 🟣   5% ⚪
+
+
+▌ MONTER DE NIVEAU (/lvl)
+──────────────────────────────────────────────────
+  Lvl 1 → 2 : sacrifier toutes ses 🟢 + 5 000 DC
+  Lvl 2 → 3 : sacrifier toutes ses 🟡 + 10 000 DC
+  Lvl 3 → 4 : sacrifier toutes ses 🟠 + 20 000 DC
+  Lvl 4 → 5 : sacrifier toutes ses 🟣 + 50 000 DC
+  Lvl 5 → 6 : sacrifier toutes ses ⚪ + 100 000 DC
+
+
+▌ SHOP (/shop)
+──────────────────────────────────────────────────
+   1 booster  →    500 DC
+   5 boosters →  2 000 DC
+  10 boosters →  3 500 DC
+  (chaque booster contient 3 cartes)
+
+
+▌ ÉVÉNEMENT COUPE DU MONDE
+──────────────────────────────────────────────────
+  → 1h avant le match : bot ping @everyone avec
+    "Match dans 1h : Équipe A vs Équipe B"
+  → Joueurs soumettent /prono 2-1 (modifiable)
+  → Les pronostics ferment 5 min avant le match
+    (le bot envoie un message de fermeture)
+  → Résultats entrés par un admin (/admin result)
+  → Récompenses automatiques :
+      Score exact     → +3 boosters
+      Bon vainqueur   → +1 booster
+
+
+▌ LISTE DES COMMANDES
+──────────────────────────────────────────────────
+
+  /in           S'inscrire comme joueur (obligatoire)
+  /help         Aide de toutes les commandes
+  /dc           Gagner 100–1000 DC (1 fois par jour)
+  /me           Voir son profil (DC, level, cartes, boosters)
+  /shop         Acheter des boosters (boutons interactifs)
+  /open         Ouvrir un booster (affiche les 5 cartes + images)
+  /deck         Voir sa collection triée par rareté et par nom
+  /lvl          Monter de niveau
+  /drops        Voir les taux de drop par niveau
+  /prono 2-1    Soumettre un pronostic pour le match en cours
+
+  — ADMIN UNIQUEMENT —
+  /admin give-boosters  Donner des boosters à un joueur
+  /admin give-coins     Donner des DC à un joueur
+  /admin add-match      Ajouter un match (équipe1, équipe2, datetime)
+  /admin result         Entrer le score + distribuer les récompenses
+  /admin matches        Lister les matchs à venir
+  /admin simulate-match Tester la notification de match
+
+
+════════════════════════════════════════════════════

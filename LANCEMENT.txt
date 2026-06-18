@@ -1,0 +1,185 @@
+════════════════════════════════════════════════════
+         DIGGERBOT — GUIDE DE LANCEMENT COMPLET
+════════════════════════════════════════════════════
+
+  Suit les étapes dans l'ordre. Chaque étape est
+  indépendante, lis bien avant de faire.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ÉTAPE 1 — PRÉREQUIS (à faire une seule fois)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Installe Node.js si ce n'est pas déjà fait :
+       https://nodejs.org  →  version LTS
+
+  2. Installe Git si ce n'est pas déjà fait :
+       https://git-scm.com/download/win
+
+  3. Crée un compte GitHub si besoin :
+       https://github.com
+
+  4. Crée un compte Railway :
+       https://railway.app  (connexion avec GitHub)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ÉTAPE 2 — CRÉER LE BOT DISCORD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Va sur  https://discord.com/developers/applications
+  2. Clique "New Application" → donne un nom (ex: DiggerBot)
+  3. Dans le menu gauche → "Bot"
+       → Clique "Reset Token" et copie le token
+         (tu ne le verras qu'une fois, garde-le bien)
+       → Active les 3 "Privileged Gateway Intents" si tu veux
+         (pas obligatoire pour ce bot)
+  4. Copie l'APPLICATION ID (menu "General Information")
+  5. Pour inviter le bot sur ton serveur :
+       Menu gauche → "OAuth2" → "URL Generator"
+       → Coche "bot" + "applications.commands"
+       → En bas, coche "Administrator"
+       → Copie et colle l'URL dans ton navigateur
+       → Sélectionne ton serveur → Autoriser
+
+  ⚠ Récupère aussi l'ID de ton serveur :
+       Sur Discord : clic droit sur le serveur → "Copier l'identifiant"
+       (active le mode développeur dans Paramètres > Apparence si besoin)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ÉTAPE 3 — CONFIGURER LE FICHIER .env
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Dans le dossier du bot (C:\Users\boris\Documents\discord\)
+  crée un fichier nommé exactement  .env  (avec le point)
+
+  Contenu du fichier .env :
+
+      DISCORD_TOKEN=colle_ton_token_ici
+      CLIENT_ID=colle_ton_application_id_ici
+      GUILD_ID=colle_ton_server_id_ici
+
+  ⚠ Ce fichier est PRIVÉ. Ne le mets jamais sur GitHub.
+    Le fichier .gitignore le protège déjà.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ÉTAPE 4 — LANCER EN LOCAL (pour tester)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Ouvre un terminal (PowerShell ou cmd) dans le dossier du bot.
+  Pour l'ouvrir rapidement : Shift + clic droit dans le dossier
+  → "Ouvrir la fenêtre PowerShell ici"
+
+  1. Installe les dépendances (une seule fois) :
+       npm install
+
+  2. Enregistre les commandes slash sur Discord (une seule fois,
+     ou après avoir ajouté/modifié une commande) :
+       node deploy-commands.js
+
+  3. Lance le bot :
+       npm start
+
+     → Si tu vois "✅ Connecté en tant que DiggerBot#xxxx"
+       le bot tourne. Les données sont sauvegardées dans data.json
+
+  4. Pour arrêter le bot : Ctrl + C dans le terminal
+
+  📌 Pour tester le bot, va dans le bon channel Discord
+     et tape /in d'abord, puis /help
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ÉTAPE 5 — METTRE LE CODE SUR GITHUB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Va sur https://github.com/new
+       → Donne un nom au dépôt (ex: diggerbot)
+       → Mets-le en PRIVÉ (pour ne pas exposer ton code)
+       → Ne coche rien d'autre → "Create repository"
+
+  2. Dans le terminal (dossier du bot), tape ces commandes
+     une par une :
+
+       git init
+       git add .
+       git commit -m "premier commit"
+       git branch -M main
+       git remote add origin https://github.com/TON_USERNAME/diggerbot.git
+       git push -u origin main
+
+     Remplace TON_USERNAME par ton pseudo GitHub
+     et diggerbot par le nom exact de ton dépôt.
+
+  ✅ Ton code est maintenant sur GitHub.
+     Le fichier .env n'est PAS uploadé (protégé par .gitignore).
+
+  📌 À chaque fois que tu modifies le code :
+       git add .
+       git commit -m "description du changement"
+       git push
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ÉTAPE 6 — HÉBERGER SUR RAILWAY (bot 24h/24)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Railway va lancer le bot en permanence sur leurs serveurs.
+
+  1. Va sur  https://railway.app  → connecte-toi avec GitHub
+
+  2. Clique "New Project" → "Deploy from GitHub repo"
+       → Sélectionne ton dépôt diggerbot
+       → Clique "Deploy Now"
+
+  3. Ajoute les variables d'environnement :
+       Dans ton projet Railway → onglet "Variables"
+       Ajoute ces 3 variables une par une :
+
+         DISCORD_TOKEN   →  ton token Discord
+         CLIENT_ID       →  ton Application ID
+         GUILD_ID        →  ton Server ID
+
+  4. Railway va redémarrer le bot automatiquement.
+     Vérifie dans l'onglet "Deployments" que c'est vert.
+
+  ✅ Le bot tourne maintenant 24h/24 sur Railway.
+
+  📌 À chaque git push, Railway redéploie automatiquement.
+
+  ⚠ NOTE SUR LES DONNÉES :
+    En ce moment les données sont dans un fichier data.json.
+    Sur Railway, ce fichier se réinitialise à chaque redéploiement.
+    → Pour des données permanentes sur Railway, il faudra
+      ajouter une base PostgreSQL (étape future).
+    → En attendant : utilise Railway juste pour que le bot
+      reste allumé, et garde à l'esprit que les données
+      se remettent à zéro à chaque deploy.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  RÉSUMÉ DES COMMANDES UTILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  npm install              → installer les dépendances
+  node deploy-commands.js  → enregistrer les commandes slash
+  npm start                → lancer le bot en local
+  git add .                → préparer les fichiers
+  git commit -m "msg"      → sauvegarder les changements
+  git push                 → envoyer sur GitHub (Railway redéploie)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ORDRE DES COMMANDES À FAIRE LA PREMIÈRE FOIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Créer le bot sur Discord Developer Portal
+  2. Créer le fichier .env avec les 3 valeurs
+  3. npm install
+  4. node deploy-commands.js
+  5. npm start
+  6. Sur Discord : /in  puis  /help
+
+════════════════════════════════════════════════════
