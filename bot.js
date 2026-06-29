@@ -27,9 +27,9 @@ const TIER_EMOJI = {
 
 // ── op.gg + DDragon ───────────────────────────────────────────────────────────
 
-let puuid        = null;
-let lpAtMidnight = null;
-let champMap     = {};
+let puuid    = null;
+let lpAt22h  = null;
+let champMap = {};
 
 async function apiFetch(url) {
   const res = await fetch(url, {
@@ -128,9 +128,8 @@ client.once('ready', async () => {
 
   try {
     await Promise.all([initPuuid(), loadChampionMap()]);
-    const summoner = await getSummonerData();
-    lpAtMidnight   = summoner?.solo_tier_info?.lp ?? null;
-    console.log(`📊 Initialisé — LP référence : ${lpAtMidnight}`);
+    console.log('📊 Initialisation LoL OK — lancement du récap de démarrage...');
+    await runDailyRecap();
   } catch (err) {
     console.error('Erreur initialisation LoL:', err.message);
   }
@@ -218,7 +217,7 @@ async function runDailyRecap() {
         .setFooter({ text: CATCHPHRASE });
 
       await channel.send({ embeds: [embed] });
-      lpAtMidnight = currentLP;
+      lpAt22h = currentLP;
       return;
     }
 
@@ -245,12 +244,12 @@ async function runDailyRecap() {
     // LP — affiché seulement si le changement est non nul
     let lpDiff  = null;
     let lpField = '';
-    if (lpAtMidnight !== null && currentLP !== null) {
-      lpDiff = currentLP - lpAtMidnight;
+    if (lpAt22h !== null && currentLP !== null) {
+      lpDiff = currentLP - lpAt22h;
       if (lpDiff !== 0) {
         const sign    = lpDiff > 0 ? '+' : '';
         const lpEmoji = lpDiff > 0 ? '📈' : '📉';
-        lpField = `\n${lpEmoji} LP : **${sign}${lpDiff} LP** (${lpAtMidnight} → ${currentLP} LP)`;
+        lpField = `\n${lpEmoji} LP : **${sign}${lpDiff} LP** (${lpAt22h} → ${currentLP} LP)`;
       }
     }
 
@@ -275,14 +274,14 @@ async function runDailyRecap() {
       .setFooter({ text: CATCHPHRASE });
 
     await channel.send({ embeds: [embed] });
-    lpAtMidnight = currentLP;
+    lpAt22h = currentLP;
   } catch (err) {
     console.error('Erreur récap quotidien:', err.message);
   }
 }
 
 function startDailyRecap() {
-  cron.schedule('0 0 * * *', runDailyRecap, { timezone: 'Europe/Paris' });
+  cron.schedule('0 22 * * *', runDailyRecap, { timezone: 'Europe/Paris' });
 }
 
 client.login(DISCORD_TOKEN);
