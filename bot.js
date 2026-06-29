@@ -87,7 +87,9 @@ async function getSummonerData() {
   return (json.data ?? json)[0];
 }
 
-async function getGames(limit = 3) {
+// Récupère les N dernières ranked solo/duo — en demande plus pour compenser
+// les éventuelles games sans données de participant
+async function getRankedGames(limit = 20) {
   await initPuuid();
   const json = await apiFetch(
     `https://lol-api-summoner.op.gg/api/v3/${REGION}/summoners/${puuid}/games` +
@@ -96,8 +98,14 @@ async function getGames(limit = 3) {
   return json.data ?? json ?? [];
 }
 
+// Retrouve Gabriel dans les participants — avec fallback sur le 1er participant
+// si le matching PUUID échoue (cas rare selon la version de l'API)
 function findMe(game) {
-  return game.participants?.find(p => p.summoner?.puuid === puuid);
+  return (
+    game.participants?.find(p => p.summoner?.puuid === puuid) ??
+    game.participants?.[0] ??
+    null
+  );
 }
 
 function champName(id) {
@@ -122,19 +130,12 @@ function pick(arr) {
 
 // ── Discord ───────────────────────────────────────────────────────────────────
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
-});
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once('ready', async () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
   console.log(`🆔 Application ID : ${client.application.id}`);
 
-  // Récupère le channel pour en déduire le GUILD_ID — plus besoin de le configurer
   const channel = await client.channels.fetch(ALERT_CHANNEL_ID).catch(() => null);
   if (!channel) {
     console.error(`❌ Channel ALERT_CHANNEL_ID introuvable : ${ALERT_CHANNEL_ID}`);
@@ -143,49 +144,35 @@ client.once('ready', async () => {
   const guildId = channel.guildId;
   console.log(`🏠 Serveur détecté : ${guildId}`);
 
-  // Enregistrement des commandes (utilise les IDs auto-détectés, aucune variable en plus)
   try {
     const rest     = new REST().setToken(DISCORD_TOKEN);
     const commands = [
       new SlashCommandBuilder()
         .setName('gab')
-        .setDescription('Rang actuel + 3 dernières parties ranked de Gabriel')
+        .setDescription('Rang actuel + 3 dernières parties ranked solo/duo de Gabriel')
         .toJSON(),
       new SlashCommandBuilder()
-        .setName('ping')
-        .setDescription('Vérifie que le bot répond')
+        .setName('test')
+        .setDescription('Simule le récap minuit dans 5 secondes')
         .toJSON(),
     ];
-
-    // Supprime les anciennes commandes globales (ancien bot)
     await rest.put(Routes.applicationCommands(client.application.id), { body: [] });
-    console.log('🗑️ Anciennes commandes globales supprimées');
-
-    // Enregistre les nouvelles commandes sur ce serveur (instantané)
     await rest.put(
       Routes.applicationGuildCommands(client.application.id, guildId),
       { body: commands },
     );
-    console.log('✅ Commandes /gab et /ping enregistrées');
+    console.log('✅ Commandes /gab et /test enregistrées');
   } catch (err) {
     console.error('Erreur enregistrement commandes:', err.message);
   }
 
-  // Initialisation des données LoL
   try {
     await Promise.all([initPuuid(), loadChampionMap()]);
     const summoner = await getSummonerData();
-    lpAtMidnight = summoner?.solo_tier_info?.lp ?? null;
+    lpAtMidnight   = summoner?.solo_tier_info?.lp ?? null;
     console.log(`📊 Initialisé — LP référence : ${lpAtMidnight}`);
   } catch (err) {
     console.error('Erreur initialisation LoL:', err.message);
-  }
-
-  // Message de lancement
-  try {
-    await channel.send('🟢 **le coach est up !**');
-  } catch (err) {
-    console.error('Erreur message lancement:', err.message);
   }
 
   startDailyRecap();
@@ -195,19 +182,18 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
-  console.log(`⚡ Commande reçue : /${interaction.commandName} par ${interaction.user.tag}`);
+  console.log(`⚡ /${interaction.commandName} par ${interaction.user.tag}`);
 
-  if (interaction.commandName === 'ping') {
-    return interaction.reply('🏓 **Pong !** Le bot est bien en ligne.');
-  }
-
+  // /gab — rang + 3 dernières ranked solo/duo
   if (interaction.commandName === 'gab') {
     await interaction.deferReply();
     try {
-      const [summoner, games] = await Promise.all([getSummonerData(), getGames(3)]);
+      const [summoner, allGames] = await Promise.all([getSummonerData(), getRankedGames(20)]);
 
+      // Prend les 3 premières games où on trouve bien le participant
       const gameLines = [];
-      for (const game of games.slice(0, 3)) {
+      for (const game of allGames) {
+        if (gameLines.length >= 3) break;
         const me = findMe(game);
         if (!me) continue;
         const isWin = me.stats?.result === 'WIN';
@@ -223,7 +209,7 @@ client.on('interactionCreate', async interaction => {
       await interaction.editReply(
         `🎮 **${GAME_NAME}#${TAG_LINE}**\n` +
         `${formatRank(summoner)}\n\n` +
-        `**Dernières parties ranked :**\n` +
+        `**3 dernières ranked solo/duo :**\n` +
         (gameLines.length ? gameLines.join('\n') : '*Aucune partie ranked récente.*')
       );
     } catch (err) {
@@ -231,97 +217,98 @@ client.on('interactionCreate', async interaction => {
       await interaction.editReply('❌ Impossible de récupérer les données (op.gg indisponible ?)');
     }
   }
+
+  // /test — simule le récap minuit après 5 secondes
+  if (interaction.commandName === 'test') {
+    await interaction.reply('⏳ Simulation du récap minuit dans 5 secondes...');
+    setTimeout(() => runDailyRecap(), 5000);
+  }
 });
 
-// ── Détection des messages (debug) ────────────────────────────────────────────
+// ── Récap quotidien ───────────────────────────────────────────────────────────
 
-client.on('messageCreate', message => {
-  if (message.author.bot) return;
-  console.log(`📨 Message de ${message.author.tag} dans #${message.channelId} : "${message.content}"`);
-});
+async function runDailyRecap() {
+  try {
+    const channel = await client.channels.fetch(ALERT_CHANNEL_ID).catch(() => null);
+    if (!channel) { console.error('Channel introuvable:', ALERT_CHANNEL_ID); return; }
 
-// ── Récap quotidien à minuit ──────────────────────────────────────────────────
+    const dayEnd   = new Date();
+    const dayStart = new Date(dayEnd.getTime() - 24 * 60 * 60 * 1000);
 
-function startDailyRecap() {
-  cron.schedule('0 0 * * *', async () => {
-    try {
-      const channel = await client.channels.fetch(ALERT_CHANNEL_ID).catch(() => null);
-      if (!channel) { console.error('Channel introuvable:', ALERT_CHANNEL_ID); return; }
+    const allGames   = await getRankedGames(50);
+    const todayGames = allGames.filter(g => {
+      const t = new Date(g.created_at ?? 0);
+      return t >= dayStart && t < dayEnd;
+    });
 
-      const dayEnd   = new Date();
-      const dayStart = new Date(dayEnd.getTime() - 24 * 60 * 60 * 1000);
+    const dateLabel = dayStart.toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long',
+    });
 
-      const allGames   = await getGames(50);
-      const todayGames = allGames.filter(g => {
-        const t = new Date(g.created_at ?? 0);
-        return t >= dayStart && t < dayEnd;
-      });
+    const summoner  = await getSummonerData();
+    const currentLP = summoner?.solo_tier_info?.lp ?? null;
 
-      const dateLabel = dayStart.toLocaleDateString('fr-FR', {
-        weekday: 'long', day: 'numeric', month: 'long',
-      });
-
-      const summoner  = await getSummonerData();
-      const currentLP = summoner?.solo_tier_info?.lp ?? null;
-
-      if (!todayGames.length) {
-        await channel.send(
-          `📊 **Récap ranked de Gabriel — ${dateLabel}**\n` +
-          `${formatRank(summoner)}\n\n` +
-          `Aucune partie ranked aujourd'hui.\n\n` +
-          pick(MESSAGES_NO_GAMES)
-        );
-        lpAtMidnight = currentLP;
-        return;
-      }
-
-      let wins = 0, losses = 0;
-      let totalK = 0, totalD = 0, totalA = 0;
-
-      for (const game of todayGames) {
-        const me = findMe(game);
-        if (!me) continue;
-        if (me.stats?.result === 'WIN') wins++; else losses++;
-        totalK += me.stats?.kill   ?? 0;
-        totalD += me.stats?.death  ?? 0;
-        totalA += me.stats?.assist ?? 0;
-      }
-
-      const n       = wins + losses || 1;
-      const avgK    = (totalK / n).toFixed(1);
-      const avgD    = (totalD / n).toFixed(1);
-      const avgA    = (totalA / n).toFixed(1);
-      const kda     = totalD > 0 ? ((totalK + totalA) / totalD).toFixed(2) : '∞';
-      const winRate = Math.round((wins / n) * 100);
-
-      let lpLine = '';
-      let lpDiff = null;
-      if (lpAtMidnight !== null && currentLP !== null) {
-        lpDiff        = currentLP - lpAtMidnight;
-        const sign    = lpDiff >= 0 ? '+' : '';
-        const lpEmoji = lpDiff >= 0 ? '📈' : '📉';
-        lpLine = `\n${lpEmoji} LP : **${sign}${lpDiff} LP** (${lpAtMidnight} → ${currentLP} LP)`;
-      }
-
-      const funnyMsg = lpDiff === null  ? ''
-        : lpDiff > 0                   ? `\n${pick(MESSAGES_GAIN)}`
-        : lpDiff < 0                   ? `\n${pick(MESSAGES_LOSE)}`
-        :                                `\n${pick(MESSAGES_NEUTRAL)}`;
-
+    if (!todayGames.length) {
       await channel.send(
         `📊 **Récap ranked de Gabriel — ${dateLabel}**\n` +
         `${formatRank(summoner)}\n\n` +
-        `🎮 **${wins + losses}** parties — ${wins}V / ${losses}D — ${winRate}% WR` +
-        lpLine + '\n' +
-        `⚔️ KDA moyen : **${avgK} / ${avgD} / ${avgA}** (ratio ${kda})` +
-        funnyMsg
+        `Aucune partie ranked aujourd'hui.\n\n` +
+        pick(MESSAGES_NO_GAMES)
       );
-
       lpAtMidnight = currentLP;
-    } catch (err) {
-      console.error('Erreur récap quotidien:', err.message);
+      return;
     }
-  }, { timezone: 'Europe/Paris' });
+
+    let wins = 0, losses = 0;
+    let totalK = 0, totalD = 0, totalA = 0;
+
+    for (const game of todayGames) {
+      const me = findMe(game);
+      if (!me) continue;
+      if (me.stats?.result === 'WIN') wins++; else losses++;
+      totalK += me.stats?.kill   ?? 0;
+      totalD += me.stats?.death  ?? 0;
+      totalA += me.stats?.assist ?? 0;
+    }
+
+    const n       = wins + losses || 1;
+    const avgK    = (totalK / n).toFixed(1);
+    const avgD    = (totalD / n).toFixed(1);
+    const avgA    = (totalA / n).toFixed(1);
+    const kda     = totalD > 0 ? ((totalK + totalA) / totalD).toFixed(2) : '∞';
+    const winRate = Math.round((wins / n) * 100);
+
+    let lpLine = '';
+    let lpDiff = null;
+    if (lpAtMidnight !== null && currentLP !== null) {
+      lpDiff        = currentLP - lpAtMidnight;
+      const sign    = lpDiff >= 0 ? '+' : '';
+      const lpEmoji = lpDiff >= 0 ? '📈' : '📉';
+      lpLine = `\n${lpEmoji} LP : **${sign}${lpDiff} LP** (${lpAtMidnight} → ${currentLP} LP)`;
+    }
+
+    const funnyMsg = lpDiff === null ? ''
+      : lpDiff > 0               ? `\n${pick(MESSAGES_GAIN)}`
+      : lpDiff < 0               ? `\n${pick(MESSAGES_LOSE)}`
+      :                            `\n${pick(MESSAGES_NEUTRAL)}`;
+
+    await channel.send(
+      `📊 **Récap ranked de Gabriel — ${dateLabel}**\n` +
+      `${formatRank(summoner)}\n\n` +
+      `🎮 **${wins + losses}** parties — ${wins}V / ${losses}D — ${winRate}% WR` +
+      lpLine + '\n' +
+      `⚔️ KDA moyen : **${avgK} / ${avgD} / ${avgA}** (ratio ${kda})` +
+      funnyMsg
+    );
+
+    lpAtMidnight = currentLP;
+  } catch (err) {
+    console.error('Erreur récap quotidien:', err.message);
+  }
+}
+
+function startDailyRecap() {
+  cron.schedule('0 0 * * *', runDailyRecap, { timezone: 'Europe/Paris' });
 }
 
 client.login(DISCORD_TOKEN);
