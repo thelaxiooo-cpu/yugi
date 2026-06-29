@@ -208,13 +208,18 @@ async function runDailyRecap() {
     const summoner  = await getSummonerData();
     const currentLP = summoner?.solo_tier_info?.lp ?? null;
 
+    const footerText = `La KC réfléchi à remplacer Canna par '${GAME_NAME}'`;
+
     // Aucune game aujourd'hui
     if (!todayGames.length) {
       const embed = new EmbedBuilder()
         .setColor(0x99AAB5)
         .setTitle(`📊 Récap ranked de Gabriel — ${dateLabel}`)
-        .setDescription(`${formatRank(summoner)}\n\nAucune partie ranked aujourd'hui.`)
-        .setFooter({ text: CATCHPHRASE });
+        .setDescription(
+          `**${GAME_NAME}** — ${formatRank(summoner)}` +
+          `\n\n## 😴 Aucune partie ranked aujourd'hui.`
+        )
+        .setFooter({ text: footerText });
 
       await channel.send({ embeds: [embed] });
       lpAt22h = currentLP;
@@ -224,14 +229,17 @@ async function runDailyRecap() {
     // Stats
     let wins = 0, losses = 0;
     let totalK = 0, totalD = 0, totalA = 0;
+    const champLines = [];
 
     for (const game of todayGames) {
       const me = findMe(game);
       if (!me) continue;
-      if (me.stats?.result === 'WIN') wins++; else losses++;
+      const isWin = me.stats?.result === 'WIN';
+      if (isWin) wins++; else losses++;
       totalK += me.stats?.kill   ?? 0;
       totalD += me.stats?.death  ?? 0;
       totalA += me.stats?.assist ?? 0;
+      champLines.push(`${isWin ? '✅' : '❌'} ${champName(me.champion_id)}`);
     }
 
     const n       = wins + losses || 1;
@@ -242,10 +250,9 @@ async function runDailyRecap() {
     const winRate = Math.round((wins / n) * 100);
 
     // LP — affiché seulement si le changement est non nul
-    let lpDiff  = null;
     let lpField = '';
     if (lpAt22h !== null && currentLP !== null) {
-      lpDiff = currentLP - lpAt22h;
+      const lpDiff = currentLP - lpAt22h;
       if (lpDiff !== 0) {
         const sign    = lpDiff > 0 ? '+' : '';
         const lpEmoji = lpDiff > 0 ? '📈' : '📉';
@@ -253,7 +260,6 @@ async function runDailyRecap() {
       }
     }
 
-    // Couleur selon bilan de la journée
     const color = wins > losses ? 0x57F287 : wins < losses ? 0xED4245 : 0x99AAB5;
 
     const roast = losses > wins
@@ -261,17 +267,20 @@ async function runDailyRecap() {
       : '';
 
     const desc =
-      `${formatRank(summoner)}\n\n` +
-      `🎮 **${n}** parties — ${wins}V / ${losses}D — ${winRate}% WR` +
-      lpField + '\n' +
-      `⚔️ KDA moyen : **${avgK} / ${avgD} / ${avgA}** (ratio ${kda})` +
+      `**${GAME_NAME}** — ${formatRank(summoner)}` +
+      `\n\n## 🎮 ${n} partie${n > 1 ? 's' : ''} — **${wins}**V / **${losses}**D — **${winRate}%** WR` +
+      lpField +
       roast;
 
     const embed = new EmbedBuilder()
       .setColor(color)
       .setTitle(`📊 Récap ranked de Gabriel — ${dateLabel}`)
       .setDescription(desc)
-      .setFooter({ text: CATCHPHRASE });
+      .addFields(
+        { name: '🃏 Champions joués', value: champLines.join('\n'), inline: true },
+        { name: '⚔️ KDA moyen', value: `**${avgK} / ${avgD} / ${avgA}**\nRatio : **${kda}**`, inline: true },
+      )
+      .setFooter({ text: footerText });
 
     await channel.send({ embeds: [embed] });
     lpAt22h = currentLP;
