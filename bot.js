@@ -129,17 +129,21 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.once('ready', async () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 
-  // Enregistrement de la commande /gab directement au démarrage
+  // Enregistrement des commandes
   try {
-    const rest    = new REST().setToken(DISCORD_TOKEN);
-    const command = new SlashCommandBuilder()
+    const rest = new REST().setToken(DISCORD_TOKEN);
+    const gab  = new SlashCommandBuilder()
       .setName('gab')
-      .setDescription('Rang actuel + 3 dernières parties ranked de Gabriel');
-    await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: [command.toJSON()] },
-    );
-    console.log('✅ Commande /gab enregistrée');
+      .setDescription('Rang actuel + 3 dernières parties ranked de Gabriel')
+      .toJSON();
+
+    // Supprime toutes les anciennes commandes globales (celles de l'ancien bot)
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
+    console.log('🗑️ Anciennes commandes globales supprimées');
+
+    // Enregistre /gab en commande de guilde (apparaît immédiatement)
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: [gab] });
+    console.log('✅ Commande /gab enregistrée sur le serveur');
   } catch (err) {
     console.error('Erreur enregistrement commande:', err.message);
   }
