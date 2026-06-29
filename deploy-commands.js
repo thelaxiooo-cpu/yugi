@@ -1,24 +1,21 @@
 require('dotenv').config();
-const { REST, Routes } = require('discord.js');
-const fs = require('fs');
+const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 
-const commands = [];
-for (const file of fs.readdirSync('./src/commands').filter(f => f.endsWith('.js'))) {
-  const cmd = require(`./src/commands/${file}`);
-  commands.push(cmd.data.toJSON());
-}
+const command = new SlashCommandBuilder()
+  .setName('gab')
+  .setDescription('Affiche le rang ranked actuel de Gabriel (Mist3rpringles#WIN)');
 
-const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   try {
-    console.log(`📤 Déploiement de ${commands.length} commande(s)...`);
+    console.log('Enregistrement de /gab...');
     await rest.put(
       Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-      { body: commands },
+      { body: [command.toJSON()] },
     );
-    console.log('✅ Commandes déployées sur le serveur !');
+    console.log('✅ Commande /gab enregistrée avec succès !');
   } catch (err) {
-    console.error(err);
+    console.error('Erreur:', err);
   }
 })();
