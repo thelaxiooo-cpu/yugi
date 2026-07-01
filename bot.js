@@ -4,6 +4,7 @@ const cron = require('node-cron');
 
 const DISCORD_TOKEN    = process.env.DISCORD_TOKEN;
 const ALERT_CHANNEL_ID = process.env.ALERT_CHANNEL_ID;
+const RIOT_API_KEY     = process.env.RIOT_API_KEY;
 
 const GAME_NAME  = 'Mist3rpringles';
 const TAG_LINE   = 'WIN';
@@ -25,17 +26,26 @@ const TIER_EMOJI = {
   GRANDMASTER: '🔴', CHALLENGER: '🔵',
 };
 
-// ── op.gg + DDragon ───────────────────────────────────────────────────────────
+// ── Clients API ───────────────────────────────────────────────────────────────
 
-let puuid    = null;
-let lpAt22h  = null;
-let champMap = {};
+let puuid      = null;
+let summonerId = null;
+let lpAt22h    = null;
+let champMap   = {};
 
 async function apiFetch(url) {
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+  return res.json();
+}
+
+async function riotFetch(url) {
+  const res = await fetch(url, {
+    headers: { 'X-Riot-Token': RIOT_API_KEY, 'Accept': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`Riot API HTTP ${res.status}: ${url}`);
   return res.json();
 }
 
@@ -49,6 +59,7 @@ async function loadChampionMap() {
   }
 }
 
+// Récupère le PUUID via op.gg (pour l'historique des parties)
 async function initPuuid() {
   if (puuid) return;
   const json = await apiFetch(
@@ -60,15 +71,23 @@ async function initPuuid() {
   puuid = s.puuid;
 }
 
-async function getSummonerData() {
+// Récupère le summonerId chiffré via Riot API (nécessaire pour les endpoints ranked)
+async function initSummonerId() {
+  if (summonerId) return;
   await initPuuid();
-  const json = await apiFetch(
-    `https://lol-api-summoner.op.gg/api/v3/${REGION}/summoners` +
-    `?riot_id=${encodeURIComponent(GAME_NAME + '#' + TAG_LINE)}&hl=en_US`
+  const data = await riotFetch(
+    `https://euw1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`
   );
-  const summoner = (json.data ?? json)[0];
-  console.log('[DEBUG] solo_tier_info:', JSON.stringify(summoner?.solo_tier_info ?? summoner?.league_stats ?? 'CHAMP NON TROUVÉ'));
-  return summoner;
+  summonerId = data.id;
+}
+
+// Rang en temps réel depuis la Riot API officielle (jamais mis en cache)
+async function getLeagueEntry() {
+  await initSummonerId();
+  const entries = await riotFetch(
+    `https://euw1.api.riotgames.com/lol/league/v4/entries/by-summoner/${summonerId}`
+  );
+  return entries.find(e => e.queueType === 'RANKED_SOLO_5x5') ?? null;
 }
 
 async function getRankedGames(limit = 20) {
@@ -88,16 +107,15 @@ function findMe(game) {
   );
 }
 
-function champName(id)  { return champMap[id] ?? `Champion #${id}`; }
-function romanDiv(n)    { return ['I', 'II', 'III', 'IV'][n - 1] ?? n; }
+function champName(id) { return champMap[id] ?? `Champion #${id}`; }
 
-function formatRank(summoner) {
-  const info = summoner?.solo_tier_info;
-  if (!info?.tier) return '🔘 Non classé';
-  const tier   = info.tier.toUpperCase();
-  const emoji  = TIER_EMOJI[tier] ?? '🏆';
-  const divStr = info.division ? ` ${romanDiv(info.division)}` : '';
-  return `${emoji} ${tier}${divStr} — ${info.lp} LP`;
+// entry = objet Riot API { tier, rank (I/II/III/IV), leaguePoints, ... }
+function formatRank(entry) {
+  if (!entry?.tier) return '🔘 Non classé';
+  const tier    = entry.tier.toUpperCase();
+  const emoji   = TIER_EMOJI[tier] ?? '🏆';
+  const divStr  = entry.rank ? ` ${entry.rank}` : '';
+  return `${emoji} ${tier}${divStr} — ${entry.leaguePoints} LP`;
 }
 
 // ── Discord ───────────────────────────────────────────────────────────────────
@@ -130,7 +148,7 @@ client.once('ready', async () => {
   }
 
   try {
-    await Promise.all([initPuuid(), loadChampionMap()]);
+    await Promise.all([initSummonerId(), loadChampionMap()]);
     console.log('📊 Initialisation LoL OK — lancement du récap de démarrage...');
     await runDailyRecap();
   } catch (err) {
@@ -146,11 +164,10 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   console.log(`⚡ /${interaction.commandName} par ${interaction.user.tag}`);
 
-  // /gab
   if (interaction.commandName === 'gab') {
     await interaction.deferReply();
     try {
-      const [summoner, allGames] = await Promise.all([getSummonerData(), getRankedGames(20)]);
+      const [entry, allGames] = await Promise.all([getLeagueEntry(), getRankedGames(20)]);
 
       const gameLines = [];
       for (const game of allGames) {
@@ -171,7 +188,7 @@ client.on('interactionCreate', async interaction => {
         .setColor(0xFFD700)
         .setTitle(`🎮 ${GAME_NAME}#${TAG_LINE}`)
         .addFields(
-          { name: 'Rang actuel', value: formatRank(summoner) },
+          { name: 'Rang actuel', value: formatRank(entry) },
           {
             name: '3 dernières ranked solo/duo',
             value: gameLines.length ? gameLines.join('\n') : '*Aucune partie ranked récente.*',
@@ -182,10 +199,9 @@ client.on('interactionCreate', async interaction => {
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('Erreur /gab:', err.message);
-      await interaction.editReply('❌ Impossible de récupérer les données (op.gg indisponible ?)');
+      await interaction.editReply('❌ Impossible de récupérer les données.');
     }
   }
-
 });
 
 // ── Récap quotidien ───────────────────────────────────────────────────────────
@@ -208,18 +224,17 @@ async function runDailyRecap() {
       weekday: 'long', day: 'numeric', month: 'long',
     });
 
-    const summoner  = await getSummonerData();
-    const currentLP = summoner?.solo_tier_info?.lp ?? null;
+    const entry      = await getLeagueEntry();
+    const currentLP  = entry?.leaguePoints ?? null;
 
     const footerText = `La KC réfléchi à remplacer Canna par '${GAME_NAME}'`;
 
-    // Aucune game aujourd'hui
     if (!todayGames.length) {
       const embed = new EmbedBuilder()
         .setColor(0x99AAB5)
         .setTitle(`📊 Récap ranked de Gabriel — ${dateLabel}`)
         .setDescription(
-          `**${GAME_NAME}** — ${formatRank(summoner)}` +
+          `**${GAME_NAME}** — ${formatRank(entry)}` +
           `\n\n## 😴 Aucune partie ranked aujourd'hui.`
         )
         .setFooter({ text: footerText });
@@ -229,7 +244,6 @@ async function runDailyRecap() {
       return;
     }
 
-    // Stats
     let wins = 0, losses = 0;
     let totalK = 0, totalD = 0, totalA = 0;
     const champLines = [];
@@ -252,7 +266,6 @@ async function runDailyRecap() {
     const kda     = totalD > 0 ? ((totalK + totalA) / totalD).toFixed(2) : '∞';
     const winRate = Math.round((wins / n) * 100);
 
-    // LP — affiché seulement si le changement est non nul
     let lpField = '';
     if (lpAt22h !== null && currentLP !== null) {
       const lpDiff = currentLP - lpAt22h;
@@ -270,7 +283,7 @@ async function runDailyRecap() {
       : '';
 
     const desc =
-      `**${GAME_NAME}** — ${formatRank(summoner)}` +
+      `**${GAME_NAME}** — ${formatRank(entry)}` +
       `\n\n## 🎮 ${n} partie${n > 1 ? 's' : ''} — **${wins}**V / **${losses}**D — **${winRate}%** WR` +
       lpField +
       roast;
